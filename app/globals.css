@@ -6,17 +6,21 @@
   color-scheme: light;
 }
 
+/* Base page styling */
 body {
-  @apply bg-slate-100 text-slate-900;
+  background-color: #f1f5f9; /* slate-100 */
+  color: #0f172a;           /* slate-900 */
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
     "SF Pro Display", sans-serif;
 }
 
+/* Optional: smoother scrolling */
 html,
 body {
   scroll-behavior: smooth;
 }
 
+/* Make form controls inherit the same font */
 input,
 select,
 textarea,
