@@ -16,6 +16,28 @@ type Session = {
   tags?: string[] | null;
 };
 
+// Keep this aligned with the tags you use in the form.
+// It lets us reason about "under-practiced" areas even if count = 0.
+const FOCUS_TAGS = [
+  "Driver",
+  "Fairway Woods",
+  "Hybrids",
+  "Long Irons",
+  "Mid Irons",
+  "Short Irons",
+  "Wedges",
+  "Putting",
+  "Chipping",
+  "Bunker",
+  "Range",
+  "Simulator",
+  "On-Course",
+  "Lesson",
+  "Fitness / Mobility",
+  "Mental Game",
+  "Notes / Review",
+];
+
 export default function StatsDashboard({ sessions }: { sessions: Session[] }) {
   const {
     totalSessions,
@@ -23,6 +45,7 @@ export default function StatsDashboard({ sessions }: { sessions: Session[] }) {
     tagCounts,
     topTags,
     chartData,
+    focusSuggestions,
   } = useMemo(() => {
     const now = new Date();
     const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
@@ -56,12 +79,25 @@ export default function StatsDashboard({ sessions }: { sessions: Session[] }) {
       count,
     }));
 
+    // Build focus suggestions out of the full tag universe, not just those used.
+    const focusBase = FOCUS_TAGS.map((tag) => ({
+      tag,
+      count: counts[tag] ?? 0,
+    }));
+
+    // Sort ascending: least-practiced first
+    focusBase.sort((a, b) => a.count - b.count);
+
+    // Take the first 3 as "areas to consider investing in"
+    const focusSuggestions = focusBase.slice(0, 3);
+
     return {
       totalSessions: total,
       recentSessions: recent,
       tagCounts: counts,
       topTags,
       chartData,
+      focusSuggestions,
     };
   }, [sessions]);
 
@@ -69,6 +105,7 @@ export default function StatsDashboard({ sessions }: { sessions: Session[] }) {
 
   return (
     <div className="space-y-4">
+      {/* High-level KPIs */}
       <div className="flex flex-wrap gap-3">
         <div className="flex-1 min-w-[120px] rounded-xl border border-slate-200 bg-white/70 p-3 text-sm">
           <div className="text-xs text-slate-500">Total sessions</div>
@@ -80,6 +117,30 @@ export default function StatsDashboard({ sessions }: { sessions: Session[] }) {
         </div>
       </div>
 
+      {/* Focus suggestions */}
+      <div className="rounded-xl border border-slate-200 bg-white/80 p-3 text-sm space-y-2">
+        <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+          Suggested focus areas
+        </div>
+        <p className="text-xs text-slate-500">
+          Based on your logged sessions, these areas are seeing the least volume.
+          If they matter for your scoring, consider dedicating focused reps here.
+        </p>
+        <ul className="space-y-1.5">
+          {focusSuggestions.map(({ tag, count }) => (
+            <li key={tag} className="flex items-center justify-between gap-2">
+              <span className="text-sm">{tag}</span>
+              <span className="text-[11px] text-slate-500">
+                {count === 0
+                  ? "No sessions yet"
+                  : `${count} session${count === 1 ? "" : "s"} logged`}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {/* Tag-based stats + chart */}
       {hasTagData ? (
         <>
           <div className="space-y-2">
