@@ -1,305 +1,94 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabaseClient";
 
 type Session = {
-  id: string;
+  id: number;
   session_date: string;
-  location_type: string | null;
-  clubs_focus: string | null;
-  main_goal: string | null;
-  big_miss: string | null;
-  face_control_rating: number | null;
-  contact_rating: number | null;
-  confidence_rating: number | null;
   notes: string | null;
+  tags?: string[] | null;
 };
 
-type Props = {
-  sessions: Session[];
-};
+export default function SessionList({ sessions }: { sessions: Session[] }) {
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
-export default function SessionList({ sessions }: Props) {
-  const router = useRouter();
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [loadingId, setLoadingId] = useState<string | null>(null);
-  const [form, setForm] = useState<Partial<Session>>({});
+  const handleDelete = async (id: number) => {
+    if (!confirm("Delete this session?")) return;
 
-  function startEdit(session: Session) {
-    setEditingId(session.id);
-    setForm({
-      main_goal: session.main_goal ?? "",
-      big_miss: session.big_miss ?? "",
-      face_control_rating: session.face_control_rating ?? 3,
-      contact_rating: session.contact_rating ?? 3,
-      confidence_rating: session.confidence_rating ?? 3,
-      notes: session.notes ?? "",
-    });
-  }
-
-  function cancelEdit() {
-    setEditingId(null);
-    setForm({});
-  }
-
-  function updateField<K extends keyof Session>(key: K, value: string) {
-    if (
-      key === "face_control_rating" ||
-      key === "contact_rating" ||
-      key === "confidence_rating"
-    ) {
-      const num = value === "" ? null : Number(value);
-      setForm((prev) => ({ ...prev, [key]: num as any }));
-    } else {
-      setForm((prev) => ({ ...prev, [key]: value as any }));
-    }
-  }
-
-  async function saveEdit(id: string) {
-    setLoadingId(id);
-    const { main_goal, big_miss, face_control_rating, contact_rating, confidence_rating, notes } =
-      form;
-
-    const { error } = await supabase
-      .from("sessions")
-      .update({
-        main_goal,
-        big_miss,
-        face_control_rating,
-        contact_rating,
-        confidence_rating,
-        notes,
-      })
-      .eq("id", id);
-
-    setLoadingId(null);
-
-    if (error) {
-      console.error("Update error:", error.message);
-      alert("Could not save changes: " + error.message);
-      return;
-    }
-
-    setEditingId(null);
-    setForm({});
-    router.refresh();
-  }
-
-  async function deleteSession(id: string) {
-    const confirmed = window.confirm(
-      "Delete this session? This cannot be undone."
-    );
-    if (!confirmed) return;
-
-    setLoadingId(id);
+    setDeletingId(id);
 
     const { error } = await supabase.from("sessions").delete().eq("id", id);
 
-    setLoadingId(null);
-
     if (error) {
-      console.error("Delete error:", error.message);
-      alert("Could not delete session: " + error.message);
-      return;
+      console.error("Error deleting session:", error.message);
     }
 
-    router.refresh();
-  }
+    setDeletingId(null);
+    window.location.reload();
+  };
 
-  if (!sessions || sessions.length === 0) {
-    return <p>No sessions logged yet.</p>;
+  if (!sessions.length) {
+    return (
+      <div className="space-y-2">
+        <h2 className="text-lg font-semibold">Recent Sessions</h2>
+        <p className="text-sm text-slate-500">
+          No sessions yet. Log your first one to start seeing patterns.
+        </p>
+      </div>
+    );
   }
 
   return (
-    <ul className="space-y-4">
-      {sessions.map((s) => {
-        const isEditing = editingId === s.id;
-        const isBusy = loadingId === s.id;
+    <div className="space-y-3">
+      <h2 className="text-lg font-semibold">Recent Sessions</h2>
+      <div className="space-y-3">
+        {sessions.map((session) => {
+          const dateLabel = session.session_date
+            ? new Date(session.session_date).toLocaleDateString()
+            : "No date";
 
-        return (
-          <li
-            key={s.id}
-            className="border rounded-lg p-4 shadow-sm bg-white space-y-2"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="font-semibold mb-1">
-                  {s.session_date} • {s.location_type?.toUpperCase()}
+          const tags = session.tags ?? [];
+
+          return (
+            <div
+              key={session.id}
+              className="card-surface rounded-xl border border-slate-300 bg-white p-3 sm:p-4 shadow-sm flex flex-col gap-2"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <div className="text-sm font-medium">{dateLabel}</div>
+                  {session.notes && (
+                    <p className="text-xs text-slate-600 line-clamp-2">
+                      {session.notes}
+                    </p>
+                  )}
                 </div>
-                {s.clubs_focus && (
-                  <div className="text-xs text-gray-600">
-                    Clubs: {s.clubs_focus}
-                  </div>
-                )}
+                <button
+                  onClick={() => handleDelete(session.id)}
+                  disabled={deletingId === session.id}
+                  className="text-xs text-red-600 border border-red-200 rounded-full px-2 py-1 disabled:opacity-60"
+                >
+                  {deletingId === session.id ? "Deleting…" : "Delete"}
+                </button>
               </div>
 
-              {/* Buttons */}
-              <div className="flex gap-2 text-xs">
-                {!isEditing ? (
-                  <>
-                    <button
-                      onClick={() => startEdit(s)}
-                      className="px-2 py-1 border rounded"
+              {tags.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="inline-flex items-center rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 px-2 py-0.5 text-[10px] font-medium"
                     >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => deleteSession(s.id)}
-                      className="px-2 py-1 border rounded text-red-600"
-                      disabled={isBusy}
-                    >
-                      {isBusy ? "Deleting…" : "Delete"}
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      onClick={() => saveEdit(s.id)}
-                      className="px-2 py-1 border rounded bg-black text-white"
-                      disabled={isBusy}
-                    >
-                      {isBusy ? "Saving…" : "Save"}
-                    </button>
-                    <button
-                      onClick={cancelEdit}
-                      className="px-2 py-1 border rounded"
-                      disabled={isBusy}
-                    >
-                      Cancel
-                    </button>
-                  </>
-                )}
-              </div>
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
-
-            {/* Content area */}
-            {!isEditing ? (
-              <>
-                {s.main_goal && (
-                  <div className="text-sm">
-                    <strong>Goal:</strong> {s.main_goal}
-                  </div>
-                )}
-
-                {s.big_miss && (
-                  <div className="text-sm">
-                    <strong>Big miss:</strong> {s.big_miss}
-                  </div>
-                )}
-
-                <div className="text-sm mt-1">
-                  Face / Contact / Confidence:{" "}
-                  {s.face_control_rating ?? "-"} / {s.contact_rating ?? "-"} /{" "}
-                  {s.confidence_rating ?? "-"}
-                </div>
-
-                {s.notes && (
-                  <p className="text-sm text-gray-600 mt-2">{s.notes}</p>
-                )}
-              </>
-            ) : (
-              <div className="space-y-2 mt-2 text-sm">
-                <div>
-                  <label className="block text-xs font-medium mb-1">
-                    Main goal
-                  </label>
-                  <input
-                    className="border rounded px-2 py-1 w-full"
-                    value={form.main_goal ?? ""}
-                    onChange={(e) =>
-                      updateField("main_goal", e.target.value)
-                    }
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium mb-1">
-                    Big miss
-                  </label>
-                  <select
-                    className="border rounded px-2 py-1 w-full"
-                    value={form.big_miss ?? ""}
-                    onChange={(e) =>
-                      updateField("big_miss", e.target.value)
-                    }
-                  >
-                    <option value="">Select one</option>
-                    <option value="left">Left</option>
-                    <option value="right">Right</option>
-                    <option value="thin">Thin</option>
-                    <option value="fat">Fat</option>
-                    <option value="heel">Heel</option>
-                    <option value="toe">Toe</option>
-                    <option value="none">None</option>
-                  </select>
-                </div>
-
-                <div className="grid grid-cols-3 gap-2">
-                  <div>
-                    <label className="block text-xs font-medium mb-1">
-                      Face (1–5)
-                    </label>
-                    <input
-                      type="number"
-                      min={1}
-                      max={5}
-                      className="border rounded px-2 py-1 w-full"
-                      value={form.face_control_rating ?? ""}
-                      onChange={(e) =>
-                        updateField("face_control_rating", e.target.value)
-                      }
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium mb-1">
-                      Contact (1–5)
-                    </label>
-                    <input
-                      type="number"
-                      min={1}
-                      max={5}
-                      className="border rounded px-2 py-1 w-full"
-                      value={form.contact_rating ?? ""}
-                      onChange={(e) =>
-                        updateField("contact_rating", e.target.value)
-                      }
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium mb-1">
-                      Confidence (1–5)
-                    </label>
-                    <input
-                      type="number"
-                      min={1}
-                      max={5}
-                      className="border rounded px-2 py-1 w-full"
-                      value={form.confidence_rating ?? ""}
-                      onChange={(e) =>
-                        updateField("confidence_rating", e.target.value)
-                      }
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium mb-1">
-                    Notes / feels
-                  </label>
-                  <textarea
-                    className="border rounded px-2 py-1 w-full"
-                    rows={3}
-                    value={form.notes ?? ""}
-                    onChange={(e) => updateField("notes", e.target.value)}
-                  />
-                </div>
-              </div>
-            )}
-          </li>
-        );
-      })}
-    </ul>
+          );
+        })}
+      </div>
+    </div>
   );
 }
